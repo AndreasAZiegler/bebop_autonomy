@@ -40,6 +40,10 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <algorithm>
 #include <string>
 #include <cstdio>
+#include <opencv2/highgui/highgui.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/range.hpp>
+#include <iostream>
 
 #include <bebop_driver/bebop_driver_nodelet.h>
 #include <bebop_driver/BebopArdrone3Config.h>
@@ -70,7 +74,8 @@ int BebopPrintToROSLogCB(eARSAL_PRINT_LEVEL level, const char *tag, const char *
 }  // namespace util
 
 BebopDriverNodelet::BebopDriverNodelet()
- : bebop_ptr_(new bebop_driver::Bebop(util::BebopPrintToROSLogCB))
+ : bebop_ptr_(new bebop_driver::Bebop(util::BebopPrintToROSLogCB)),
+   bebop_data_transfer_manager_ptr_(nullptr)
 {
   NODELET_INFO("Nodelet Cstr");
 }
@@ -125,6 +130,8 @@ void BebopDriverNodelet::onInit()
     NODELET_INFO("Fetching all settings from the Drone ...");
     bebop_ptr_->RequestAllSettings();
     ros::Rate(ros::Duration(3.0)).sleep();
+
+    bebop_data_transfer_manager_ptr_.reset(new BebopDataTransferManager());
   }
   catch (const std::runtime_error& e)
   {
@@ -464,18 +471,42 @@ void BebopDriverNodelet::CameraPublisherThread()
 {
   uint32_t frame_w = 0;
   uint32_t frame_h = 0;
+  bool pictureToPublishFlag = false;
   NODELET_INFO_STREAM("[CameraThread] thread lwp_id: " << util::GetLWPId());
 
   while (!boost::this_thread::interruption_requested())
   {
     try
     {
+      bebop_ptr_->TakeSnapshot();
+
+      ros::Rate(ros::Duration(1.0)).sleep();
+
+      bebop_data_transfer_manager_ptr_->startMediaListThread();
+
+      while(!pictureToPublishFlag)
+      {
+        if(bebop_data_transfer_manager_ptr_->mediaAvailable())
+        {
+          bebop_data_transfer_manager_ptr_->downloadMedias();
+          while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished());
+          pictureToPublishFlag = true;
+        }
+      }
+
       sensor_msgs::ImagePtr image_msg_ptr_(new sensor_msgs::Image());
       const ros::Time t_now = ros::Time::now();
 
+      /*
       NODELET_DEBUG_STREAM("Grabbing a frame from Bebop");
       // This is blocking
       bebop_ptr_->GetFrontCameraFrame(image_msg_ptr_->data, frame_w, frame_h);
+      */
+      NODELET_DEBUG_STREAM("Grabbing a frame from Bebop (ftp download)");
+
+
+			std::string filename = getLatestFileName();
+			cv::Mat image = cv::imread(filename, CV_LOAD_IMAGE_COLOR);
 
       NODELET_DEBUG_STREAM("Frame grabbed: " << frame_w << " , " << frame_h);
       camera_info_msg_ptr_.reset(new sensor_msgs::CameraInfo(cinfo_manager_ptr_->getCameraInfo()));
@@ -496,6 +527,9 @@ void BebopDriverNodelet::CameraPublisherThread()
 
         image_transport_pub_.publish(image_msg_ptr_, camera_info_msg_ptr_);
       }
+
+      bebop_data_transfer_manager_ptr_->removePictures();
+      pictureToPublishFlag = false;
     }
     catch (const std::runtime_error& e)
     {
@@ -719,6 +753,31 @@ void BebopDriverNodelet::AuxThread()
       NODELET_ERROR_STREAM("[AuxThread] " << e.what());
     }
   }
+}
+
+std::string BebopDriverNodelet::getLatestFileName()
+{
+    boost::filesystem::path latest;
+    std::time_t latest_tm {};
+
+    for(auto&& entry : boost::make_iterator_range(boost::filesystem::directory_iterator("."), {}))
+    {
+        boost::filesystem::path p = entry.path();
+        if(is_regular_file(p) && p.extension() == ".jpg")
+        {
+            std::time_t timestamp = boost::filesystem::last_write_time(p);
+            if(timestamp > latest_tm) {
+                latest = p;
+                latest_tm = timestamp;
+            }
+        }
+    }
+
+    if (!latest.empty())
+    {
+        return(latest.string());
+    }
+    return("");
 }
 
 }  // namespace bebop_driver

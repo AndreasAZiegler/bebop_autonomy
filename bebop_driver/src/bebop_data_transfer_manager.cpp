@@ -4,18 +4,12 @@
 #include "bebop_driver/bebop_data_transfer_manager.h"
 
 BebopDataTransferManager::BebopDataTransferManager()
-  /*: mediaAvailableFlag(false),
-    mediaDownloadFinishedFlag(true)//,
-    */
-    /*
-    medias(nullptr),
-    count(0)
-    */
+	: manager(NULL),
+		mediaAvailableFlag(false),
+		mediaDownloadFinishedFlag(true),
+		count(0)
 {
-    mediaAvailableFlag = false;
-    mediaDownloadFinishedFlag = true;
-
-    createDataTransferManager();
+		createDataTransferManager();
 }
 
 BebopDataTransferManager::~BebopDataTransferManager()
@@ -101,16 +95,16 @@ void BebopDataTransferManager::createDataTransferManager()
 void BebopDataTransferManager::startMediaListThread()
 {
     // first retrieve Medias without their thumbnails
-    ARSAL_Thread_Create(&threadRetreiveAllMedias, ARMediaStorage_retreiveAllMediasAsync, NULL);
+    ARSAL_Thread_Create(&threadRetreiveAllMedias, BebopDataTransferManager::ARMediaStorage_retreiveAllMediasAsync, (void*)this);
 }
 
-static void* ARMediaStorage_retreiveAllMediasAsync(void* arg)
+void* BebopDataTransferManager::ARMediaStorage_retreiveAllMediasAsync(void* arg)
 {
-    getAllMediaAsync();
+    static_cast<BebopDataTransferManager*>(arg)->getAllMediaAsync();
     return NULL;
 }
 
-void getAllMediaAsync()
+void BebopDataTransferManager::getAllMediaAsync()
 {
     eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
     int mediaListCount = 0;
@@ -123,18 +117,14 @@ void getAllMediaAsync()
             count = mediaListCount;
 
             std::lock_guard<std::mutex> guard(accessMediasMutex);
-            medias = new ARDATATRANSFER_Media_t*[mediaListCount];
-            for(int i = 0; i < mediaListCount; i++)
-            {
-              medias[i] = new ARDATATRANSFER_Media_t;
-            }
+            medias.clear();
 
             for (int i = 0 ; i < mediaListCount && result == ARDATATRANSFER_OK; i++)
             {
                 ARDATATRANSFER_Media_t * mediaObject = ARDATATRANSFER_MediasDownloader_GetAvailableMediaAtIndex(manager, i, &result);
                 //printf("Media %i: %s", i, mediaObject->name);
                 // Do what you want with this mediaObject
-                medias[i] = mediaObject;
+                medias.push_back(mediaObject);
             }
             mediaAvailableFlag = true;
         }
@@ -148,7 +138,7 @@ void BebopDataTransferManager::downloadMedias()
     {
         std::lock_guard<std::mutex> guard(accessMediasMutex);
         ARDATATRANSFER_Media_t *media = medias[i];
-        result = ARDATATRANSFER_MediasDownloader_AddMediaToQueue(manager, media, medias_downloader_progress_callback, NULL, medias_downloader_completion_callback, NULL);
+        result = ARDATATRANSFER_MediasDownloader_AddMediaToQueue(manager, media, BebopDataTransferManager::medias_downloader_progress_callback, NULL, BebopDataTransferManager::medias_downloader_completion_callback, (void*)this);
     }
 
     if (result == ARDATATRANSFER_OK)
@@ -161,24 +151,19 @@ void BebopDataTransferManager::downloadMedias()
     }
 }
 
-void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
+void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
 {
     // the media is downloading
 }
 
-void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
+void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
     // the media is downloaded
-    std::lock_guard<std::mutex> guard(accessMediasMutex);
+    static_cast<BebopDataTransferManager*>(arg)->medias_downloader_completion();
+}
 
-		/*
-		for(int i = 0; i < count; i++)
-		{
-			delete medias[i];
-		}
-		delete[] medias;
-		*/
-
+void BebopDataTransferManager::medias_downloader_completion()
+{
     mediaAvailableFlag = false;
     mediaDownloadFinishedFlag = true;
 }
@@ -201,9 +186,9 @@ int BebopDataTransferManager::numberOfDownloadedFiles()
 
 void BebopDataTransferManager::removePictures()
 {
-  std::cout << "Remove pictures!" << std::endl;
-
   std::lock_guard<std::mutex> guard(removePicturesMutex);
+
+  std::cout << "Remove pictures!" << std::endl;
 
   std::ofstream outfile("tmp/test.txt");
   outfile << "Test" << std::endl;
