@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(bebop_driver)
 
+set(ROS_BUILD_TYPE Debug)
+
 ## Enable hardware (Bebop In The Loop Tests)
 option(RUN_HARDWARE_TESTS "Enable hardware (Bebop In The Loop Tests" OFF)
 
@@ -51,9 +53,11 @@ roslint_cpp(
   src/bebop_driver_node.cpp
   src/bebop_driver_nodelet.cpp
   src/bebop_video_decoder.cpp
+  src/bebop_data_transfer_manager.cpp
   include/bebop_driver/bebop.h
   include/bebop_driver/bebop_driver_nodelet.h
   include/bebop_driver/bebop_video_decoder.h
+  include/bebop_driver/bebop_data_transfer_manager.h
 )
 
 ###########
@@ -87,16 +91,23 @@ target_link_libraries(bebop
 
 add_dependencies(bebop ${PROJECT_NAME}_gencfg)
 
+add_library(bebop_data_transfer_manager src/bebop_data_transfer_manager.cpp)
+target_link_libraries(bebop_data_transfer_manager
+  ${ARSDK_LIBS}
+)
+
 add_library(bebop_driver_nodelet src/bebop_driver_nodelet.cpp)
 target_link_libraries(bebop_driver_nodelet
   ${catkin_LIBRARIES}
   bebop
+  bebop_data_transfer_manager
 )
 
 add_executable(bebop_driver_node src/bebop_driver_node.cpp)
 target_link_libraries(bebop_driver_node
   ${catkin_LIBRARIES}
   bebop
+  bebop_data_transfer_manager
 )
 
 #############

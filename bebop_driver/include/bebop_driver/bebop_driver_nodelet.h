@@ -45,6 +45,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <boost/shared_ptr.hpp>
 
 #include "bebop_driver/bebop.h"
+#include "bebop_driver/bebop_data_transfer_manager.h"
 
 #define CLAMP(x, l, h) (((x) > (h)) ? (h) : (((x) < (l)) ? (l) : (x)))
 
@@ -100,6 +101,7 @@ class BebopDriverNodelet : public nodelet::Nodelet
 {
 private:
   boost::shared_ptr<bebop_driver::Bebop> bebop_ptr_;
+  boost::shared_ptr<BebopDataTransferManager> bebop_data_transfer_manager_ptr_;
   boost::shared_ptr<boost::thread> camera_pub_thread_ptr_;
   boost::shared_ptr<boost::thread> aux_thread_ptr_;
 
@@ -170,6 +172,8 @@ private:
   void ToggleRecordingCallback(const std_msgs::BoolConstPtr& toggle_ptr);
 
   void ParamCallback(bebop_driver::BebopArdrone3Config &config, uint32_t level);
+
+  std::string getLatestFileName();
 
 public:
   BebopDriverNodelet();
