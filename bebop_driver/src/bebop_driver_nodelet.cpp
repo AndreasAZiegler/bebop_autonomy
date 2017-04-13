@@ -489,6 +489,7 @@ void BebopDriverNodelet::CameraPublisherThread()
         if(bebop_data_transfer_manager_ptr_->mediaAvailable())
         {
           bebop_data_transfer_manager_ptr_->downloadMedias();
+          //downloadMedias();
           while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished());
           pictureToPublishFlag = true;
         }

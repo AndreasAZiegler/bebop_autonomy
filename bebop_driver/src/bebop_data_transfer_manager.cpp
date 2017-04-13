@@ -3,12 +3,15 @@
 
 #include "bebop_driver/bebop_data_transfer_manager.h"
 
+ARSAL_Thread_t threadMediasDownloader;    // the thread that will download medias
+
 BebopDataTransferManager::BebopDataTransferManager()
-	: //manager(NULL),
+	: manager(NULL),
 		mediaAvailableFlag(false),
-		mediaDownloadFinishedFlag(false)//,
-		//count(0)
+		mediaDownloadFinishedFlag(false),
+		count(0)
 {
+		threadMediasDownloaderPtr = &threadMediasDownloader;
 		createDataTransferManager();
 }
 
@@ -32,13 +35,13 @@ BebopDataTransferManager::~BebopDataTransferManager()
         threadGetThumbnails = NULL;
     }
 
-    if (threadMediasDownloader != NULL)
+    if (*threadMediasDownloaderPtr != NULL)
     {
         ARDATATRANSFER_MediasDownloader_CancelQueueThread(manager);
 
-        ARSAL_Thread_Join(threadMediasDownloader, NULL);
-        ARSAL_Thread_Destroy(&threadMediasDownloader);
-        threadMediasDownloader = NULL;
+        ARSAL_Thread_Join(*threadMediasDownloaderPtr, NULL);
+        ARSAL_Thread_Destroy(threadMediasDownloaderPtr);
+        *threadMediasDownloaderPtr = NULL;
     }
 
     ARDATATRANSFER_MediasDownloader_Delete(manager);
@@ -140,28 +143,28 @@ void BebopDataTransferManager::downloadMedias()
     {
         std::lock_guard<std::mutex> guard(accessMediasMutex);
         ARDATATRANSFER_Media_t *media = medias[i];
-        result = ARDATATRANSFER_MediasDownloader_AddMediaToQueue(manager, media, medias_downloader_progress_callback, NULL, medias_downloader_completion_callback, (void*)this);
+        result = ARDATATRANSFER_MediasDownloader_AddMediaToQueue(manager, media, BebopDataTransferManager::medias_downloader_progress_callback, (void*)this, BebopDataTransferManager::medias_downloader_completion_callback, (void*)this);
     }
 
     if (result == ARDATATRANSFER_OK)
     {
-        if (threadMediasDownloader == NULL)
+        if (*threadMediasDownloaderPtr == NULL)
         {
             // if not already started, start download thread in background
-            ARSAL_Thread_Create(&threadMediasDownloader, ARDATATRANSFER_MediasDownloader_QueueThreadRun, manager);
+            ARSAL_Thread_Create(threadMediasDownloaderPtr, ARDATATRANSFER_MediasDownloader_QueueThreadRun, manager);
         }
     }
 }
 
-//void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
-void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
+void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
+//void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
 {
     // the media is downloading
     //std::cout << "Media downloaded up to: " << percent << std::endl;
 }
 
-//void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
-void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
+void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
+//void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
     // the media is downloaded
     //std::cout << "Media is downloaded!" << std::endl;
@@ -199,5 +202,5 @@ void BebopDataTransferManager::removePictures()
   outfile << "Test" << std::endl;
   outfile.close();
 
-  //system("exec rm -r tmp/*");
+  system("exec rm -r tmp/*");
 }
