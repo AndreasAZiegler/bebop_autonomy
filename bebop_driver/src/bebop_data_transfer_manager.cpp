@@ -163,7 +163,7 @@ void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, AR
 //void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
 {
     // the media is downloading
-    //std::cout << "Media downloaded up to: " << percent << std::endl;
+    std::cout << "Media downloaded up to: " << percent << std::endl;
 }
 
 void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
@@ -273,5 +273,5 @@ void BebopDataTransferManager::removePictures()
 		outfile.close();
 		*/
 
-		system("exec rm -r tmp/*");
+		//system("exec rm -r tmp/*");
 }
