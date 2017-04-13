@@ -41,6 +41,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <string>
 #include <cstdio>
 #include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <boost/filesystem.hpp>
 #include <boost/range.hpp>
 #include <iostream>
@@ -480,7 +481,7 @@ void BebopDriverNodelet::CameraPublisherThread()
     {
       bebop_ptr_->TakeSnapshot();
 
-      ros::Rate(ros::Duration(1.0)).sleep();
+      //ros::Rate(ros::Duration(1.0)).sleep();
 
       bebop_data_transfer_manager_ptr_->startMediaListThread();
 
@@ -489,13 +490,12 @@ void BebopDriverNodelet::CameraPublisherThread()
         if(bebop_data_transfer_manager_ptr_->mediaAvailable())
         {
           bebop_data_transfer_manager_ptr_->downloadMedias();
-          //downloadMedias();
           while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished());
           pictureToPublishFlag = true;
         }
       }
 
-      sensor_msgs::ImagePtr image_msg_ptr_(new sensor_msgs::Image());
+      //sensor_msgs::ImagePtr image_msg_ptr_(new sensor_msgs::Image());
       const ros::Time t_now = ros::Time::now();
 
       /*
@@ -518,6 +518,7 @@ void BebopDriverNodelet::CameraPublisherThread()
 
       if (image_transport_pub_.getNumSubscribers() > 0)
       {
+        /*
         image_msg_ptr_->encoding = "rgb8";
         image_msg_ptr_->is_bigendian = false;
         image_msg_ptr_->header.frame_id = param_camera_frame_id_;
@@ -525,11 +526,14 @@ void BebopDriverNodelet::CameraPublisherThread()
         image_msg_ptr_->width = frame_w;
         image_msg_ptr_->height = frame_h;
         image_msg_ptr_->step = image_msg_ptr_->width * 3;
+        */
 
+        sensor_msgs::ImagePtr image_msg_ptr_ = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
         image_transport_pub_.publish(image_msg_ptr_, camera_info_msg_ptr_);
       }
 
       bebop_data_transfer_manager_ptr_->removePictures();
+      while(!bebop_data_transfer_manager_ptr_->mediaDeletedFinished());
       pictureToPublishFlag = false;
     }
     catch (const std::runtime_error& e)
@@ -761,7 +765,7 @@ std::string BebopDriverNodelet::getLatestFileName()
     boost::filesystem::path latest;
     std::time_t latest_tm {};
 
-    for(auto&& entry : boost::make_iterator_range(boost::filesystem::directory_iterator("."), {}))
+    for(auto&& entry : boost::make_iterator_range(boost::filesystem::directory_iterator("tmp"), {}))
     {
         boost::filesystem::path p = entry.path();
         if(is_regular_file(p) && p.extension() == ".jpg")

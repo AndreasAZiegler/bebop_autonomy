@@ -13,8 +13,6 @@ extern "C"
 #define DEVICE_PORT     21
 #define MEDIA_FOLDER    "internal_000"
 
-std::mutex accessMediasMutex;
-
 class BebopDataTransferManager
 {
   public:
@@ -28,6 +26,8 @@ class BebopDataTransferManager
 
     bool mediaAvailable();
     bool mediaDownloadFinished();
+
+    bool mediaDeletedFinished();
 
     int numberOfDownloadedFiles();
 
@@ -54,15 +54,32 @@ class BebopDataTransferManager
 		static void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
 		void medias_downloader_completion();
 
+		void deleteAllMedia();
+
+		static void medias_delete_completion_callback(void *arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
+		void medias_delete_completion();
+
 		std::vector<ARDATATRANSFER_Media_t*> medias;
-		int count;
+		std::mutex localMediasMutex;
+
+		bool downloadingMediasFlag;
+
+		int numberOfCurrentlyAvailableMediaToDownload;
+		std::mutex numberOfCurrentlyAvailableMediaToDownloadMutex;
+
+		int numberOfCurrentlyDownloadedNotDeletedMedia;
+		std::mutex numberOfCurrentlyDownloadedNotDeletedMediaMutex;
+
+		int numberOfCurrentlyDeletedMedia;
+		std::mutex numberOfCurrentlyDeletedMediaMutex;
 
 		bool mediaAvailableFlag;
+		std::mutex mediaAvailableFlagMutex;
 		bool mediaDownloadFinishedFlag;
+		std::mutex mediaDownloadFinishedFlagMutex;
+		bool mediaDeletedFinishedFlag;
+		std::mutex mediaDeletedFinishedFlagMutex;
 
-		//std::mutex accessMediasMutex;
-
-    std::mutex removePicturesMutex;
 };
 
 #endif // BEBOP_DATA_TRANSFER_MANAGER_H

@@ -9,7 +9,10 @@ BebopDataTransferManager::BebopDataTransferManager()
 	: manager(NULL),
 		mediaAvailableFlag(false),
 		mediaDownloadFinishedFlag(false),
-		count(0)
+		numberOfCurrentlyAvailableMediaToDownload(0),
+		numberOfCurrentlyDownloadedNotDeletedMedia(0),
+		numberOfCurrentlyDeletedMedia(0),
+		downloadingMediasFlag(false)
 {
 		threadMediasDownloaderPtr = &threadMediasDownloader;
 		createDataTransferManager();
@@ -117,9 +120,9 @@ void BebopDataTransferManager::getAllMediaAsync()
         mediaListCount = ARDATATRANSFER_MediasDownloader_GetAvailableMediasSync(manager, 0, &result);
         if (result == ARDATATRANSFER_OK && mediaListCount > 0)
         {
-            count = mediaListCount;
+            numberOfCurrentlyAvailableMediaToDownload = mediaListCount;
 
-            std::lock_guard<std::mutex> guard(accessMediasMutex);
+            std::lock_guard<std::mutex> guard(localMediasMutex);
             medias.clear();
 
             for (int i = 0 ; i < mediaListCount && result == ARDATATRANSFER_OK; i++)
@@ -139,9 +142,9 @@ void BebopDataTransferManager::downloadMedias()
 //void downloadMedias()
 {
     eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
-    for (int i = 0 ; i < count && result == ARDATATRANSFER_OK; i++)
+    for (int i = 0 ; i < numberOfCurrentlyAvailableMediaToDownload && result == ARDATATRANSFER_OK; i++)
     {
-        std::lock_guard<std::mutex> guard(accessMediasMutex);
+        std::lock_guard<std::mutex> guard(localMediasMutex);
         ARDATATRANSFER_Media_t *media = medias[i];
         result = ARDATATRANSFER_MediasDownloader_AddMediaToQueue(manager, media, BebopDataTransferManager::medias_downloader_progress_callback, (void*)this, BebopDataTransferManager::medias_downloader_completion_callback, (void*)this);
     }
@@ -173,8 +176,28 @@ void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, 
 
 void BebopDataTransferManager::medias_downloader_completion()
 {
-    mediaAvailableFlag = false;
-    mediaDownloadFinishedFlag = true;
+		{
+				std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
+				mediaDeletedFinishedFlag = false;
+		}
+		{
+				std::lock_guard<std::mutex> guard(numberOfCurrentlyDownloadedNotDeletedMediaMutex);
+				numberOfCurrentlyDownloadedNotDeletedMedia++;
+		}
+
+		if(numberOfCurrentlyDownloadedNotDeletedMedia == numberOfCurrentlyAvailableMediaToDownload)
+		{
+				numberOfCurrentlyAvailableMediaToDownload = 0;
+
+				{
+						std::lock_guard<std::mutex> guard(mediaAvailableFlagMutex);
+						mediaAvailableFlag = false;
+				}
+				{
+						std::lock_guard<std::mutex> guard(mediaDownloadFinishedFlagMutex);
+						mediaDownloadFinishedFlag = true;
+				}
+		}
 }
 
 bool BebopDataTransferManager::mediaAvailable()
@@ -187,20 +210,61 @@ bool BebopDataTransferManager::mediaDownloadFinished()
     return(mediaDownloadFinishedFlag);
 }
 
+bool BebopDataTransferManager::mediaDeletedFinished()
+{
+    return(mediaDeletedFinishedFlag);
+}
+
+void BebopDataTransferManager::deleteAllMedia()
+{
+    eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
+    //for (int i = 0 ; i < numberOfCurrentlyDownloadedNotDeletedMedia && result == ARDATATRANSFER_OK; i++)
+    for (int i = 0 ; i < numberOfCurrentlyDownloadedNotDeletedMedia; i++)
+    {
+        std::lock_guard<std::mutex> guard(localMediasMutex);
+        ARDATATRANSFER_Media_t *media = medias[i];
+        result = ARDATATRANSFER_MediasDownloader_DeleteMedia(manager, media, BebopDataTransferManager::medias_delete_completion_callback, (void*)this);
+    }
+}
+
+
+void BebopDataTransferManager::medias_delete_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
+{
+		static_cast<BebopDataTransferManager*>(arg)->medias_delete_completion();
+}
+
+void BebopDataTransferManager::medias_delete_completion()
+{
+		std::lock_guard<std::mutex> guard(numberOfCurrentlyDeletedMediaMutex);
+		numberOfCurrentlyDeletedMedia++;
+
+		if(numberOfCurrentlyDeletedMedia == numberOfCurrentlyDownloadedNotDeletedMedia)
+		{
+				std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
+				mediaDeletedFinishedFlag = true;
+
+				numberOfCurrentlyDownloadedNotDeletedMedia = 0;
+				numberOfCurrentlyDeletedMedia = 0;
+		}
+}
+
+
 int BebopDataTransferManager::numberOfDownloadedFiles()
 {
-  return(count);
+		return(numberOfCurrentlyAvailableMediaToDownload);
 }
 
 void BebopDataTransferManager::removePictures()
 {
-  std::lock_guard<std::mutex> guard(removePicturesMutex);
+		deleteAllMedia();
 
-  std::cout << "Remove pictures!" << std::endl;
+		/*
+		std::cout << "Remove pictures!" << std::endl;
 
-  std::ofstream outfile("tmp/test.txt");
-  outfile << "Test" << std::endl;
-  outfile.close();
+		std::ofstream outfile("tmp/test.txt");
+		outfile << "Test" << std::endl;
+		outfile.close();
+		*/
 
-  system("exec rm -r tmp/*");
+		//system("exec rm -r tmp/*");
 }
