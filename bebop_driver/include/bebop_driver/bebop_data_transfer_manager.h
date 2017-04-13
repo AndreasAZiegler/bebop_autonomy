@@ -13,6 +13,19 @@ extern "C"
 #define DEVICE_PORT     21
 #define MEDIA_FOLDER    "internal_000"
 
+//ARDATATRANSFER_Manager_t *manager;        // the data transfer manager
+ARSAL_Thread_t threadMediasDownloader;    // the thread that will download medias
+
+//void downloadMedias();
+
+void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent);
+void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
+
+std::vector<ARDATATRANSFER_Media_t*> medias;
+int count;
+
+std::mutex accessMediasMutex;
+
 class BebopDataTransferManager
 {
   public:
@@ -31,11 +44,13 @@ class BebopDataTransferManager
 
     void removePictures();
 
+    void medias_downloader_completion();
+
 	private:
 		ARDATATRANSFER_Manager_t *manager;        // the data transfer manager
 		ARSAL_Thread_t threadRetreiveAllMedias;   // the thread that will do the media retrieving
 		ARSAL_Thread_t threadGetThumbnails;       // the thread that will download the thumbnails
-		ARSAL_Thread_t threadMediasDownloader;    // the thread that will download medias
+		//ARSAL_Thread_t threadMediasDownloader;    // the thread that will download medias
 		ARUTILS_Manager_t *ftpListManager;        // an ftp that will do the list
 		ARUTILS_Manager_t *ftpQueueManager;       // an ftp that will do the download
 
@@ -45,18 +60,20 @@ class BebopDataTransferManager
 
 		void getAllMediaAsync();
 
-		static void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent);
+		//static void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent);
 
-		static void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
-		void medias_downloader_completion();
+		//static void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
+		//void medias_downloader_completion();
 
+		/*
 		std::vector<ARDATATRANSFER_Media_t*> medias;
 		int count;
+		*/
 
 		bool mediaAvailableFlag;
 		bool mediaDownloadFinishedFlag;
 
-		std::mutex accessMediasMutex;
+		//std::mutex accessMediasMutex;
 
     std::mutex removePicturesMutex;
 };
