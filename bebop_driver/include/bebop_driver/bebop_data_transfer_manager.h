@@ -57,7 +57,7 @@ class BebopDataTransferManager
 		void deleteAllMedia();
 
 		static void medias_delete_completion_callback(void *arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error);
-		void medias_delete_completion();
+		void medias_delete_completion(eARDATATRANSFER_ERROR error);
 
 		std::vector<ARDATATRANSFER_Media_t*> medias;
 		std::mutex localMediasMutex;
