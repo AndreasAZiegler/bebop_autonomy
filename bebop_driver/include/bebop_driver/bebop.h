@@ -179,7 +179,7 @@ public:
    * @brief Set the format of the taken pictures
    * @param format 0: Raw image, 1: 4:3 jpeg photo, 2: 16:9 snapshot from camera, 3: jpeg fisheye image only
    */
-  void SetPictureFormat(const int& format);
+  void SetPictureFormat(const unsigned int &format);
   // exposure should be between -3.0 and +3.0
   void SetExposure(const float& exposure);
   // true: start, false: stop

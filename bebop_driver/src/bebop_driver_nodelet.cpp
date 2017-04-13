@@ -174,6 +174,7 @@ void BebopDriverNodelet::onInit()
 
   dynr_serv_ptr_->setCallback(cb);
 
+  /*
   try
   {
     NODELET_INFO("Enabling video stream ...");
@@ -188,6 +189,17 @@ void BebopDriverNodelet::onInit()
   {
     NODELET_ERROR_STREAM("Start() failed: " << e.what());
     // TODO(mani-monaj): Retry mechanism
+  }
+  */
+
+  try
+  {
+      camera_pub_thread_ptr_ = boost::make_shared<boost::thread>(
+            boost::bind(&bebop_driver::BebopDriverNodelet::BebopDriverNodelet::CameraPublisherThread, this));
+  }
+  catch (const::std::runtime_error& e)
+  {
+    NODELET_ERROR_STREAM("Start() failed: " << e.what());
   }
 
   aux_thread_ptr_ = boost::make_shared<boost::thread>(
@@ -424,7 +436,7 @@ void BebopDriverNodelet::SetPictureFormatCallback(const std_msgs::UInt8ConstPtr&
 {
   try
   {
-    ROS_INFO("Setting picture format to %f", format_ptr->data);
+    ROS_INFO("Setting picture format to %u", format_ptr->data);
     bebop_ptr_->SetPictureFormat(format_ptr->data);
   }
   catch (const std::runtime_error& e)
@@ -475,6 +487,14 @@ void BebopDriverNodelet::CameraPublisherThread()
   bool pictureToPublishFlag = false;
   NODELET_INFO_STREAM("[CameraThread] thread lwp_id: " << util::GetLWPId());
 
+	/*
+	ROS_INFO("Setting picture format to %u", 3);
+	bebop_ptr_->SetPictureFormat(3);
+	*/
+
+  // Wait for 1 seconds
+  //ros::Rate(ros::Duration(1.0)).sleep();
+
   while (!boost::this_thread::interruption_requested())
   {
     try
@@ -490,6 +510,7 @@ void BebopDriverNodelet::CameraPublisherThread()
         if(bebop_data_transfer_manager_ptr_->mediaAvailable())
         {
           bebop_data_transfer_manager_ptr_->downloadMedias();
+          //ros::Rate(ros::Duration(1.0)).sleep();
           while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished());
           pictureToPublishFlag = true;
         }

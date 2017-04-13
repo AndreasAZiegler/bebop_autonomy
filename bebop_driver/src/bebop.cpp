@@ -625,7 +625,7 @@ void Bebop::TakeSnapshot()
  * @brief Set the format of the taken pictures
  * @param format 0: Raw image, 1: 4:3 jpeg photo, 2: 16:9 snapshot from camera, 3: jpeg fisheye image only
  */
-void Bebop::SetPictureFormat(const int& format)
+void Bebop::SetPictureFormat(const unsigned int& format)
 {
   ThrowOnInternalError("Failed to set picture format");
   ThrowOnCtrlError(
