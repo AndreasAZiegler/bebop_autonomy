@@ -48,6 +48,7 @@ class BebopDataTransferManager
 		static void* ARMediaStorage_retreiveAllMediasAsync(void *arg);
 
 		void getAllMediaAsync();
+		std::mutex getAllMediaAsyncMutex;
 
 		static void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent);
 

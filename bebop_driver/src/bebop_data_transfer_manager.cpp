@@ -112,36 +112,50 @@ void* BebopDataTransferManager::ARMediaStorage_retreiveAllMediasAsync(void* arg)
 
 void BebopDataTransferManager::getAllMediaAsync()
 {
-    eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
-    int mediaListCount = 0;
-
-    if (result == ARDATATRANSFER_OK)
+    if(getAllMediaAsyncMutex.try_lock())
     {
-        mediaListCount = ARDATATRANSFER_MediasDownloader_GetAvailableMediasSync(manager, 0, &result);
-        if (result == ARDATATRANSFER_OK && mediaListCount > 0)
-        {
-            numberOfCurrentlyAvailableMediaToDownload = mediaListCount;
+        eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
+        int mediaListCount = 0;
 
-            std::lock_guard<std::mutex> guard(localMediasMutex);
-            medias.clear();
+				if (result == ARDATATRANSFER_OK)
+				{
+						mediaListCount = ARDATATRANSFER_MediasDownloader_GetAvailableMediasSync(manager, 0, &result);
+						if (result == ARDATATRANSFER_OK && mediaListCount > 0)
+						{
+								{
+										std::lock_guard<std::mutex> guard(numberOfCurrentlyAvailableMediaToDownloadMutex);
+										numberOfCurrentlyAvailableMediaToDownload = mediaListCount;
+								}
 
-            for (int i = 0 ; i < mediaListCount && result == ARDATATRANSFER_OK; i++)
-            {
-                ARDATATRANSFER_Media_t * mediaObject = ARDATATRANSFER_MediasDownloader_GetAvailableMediaAtIndex(manager, i, &result);
-                //printf("Media %i: %s", i, mediaObject->name);
-                // Do what you want with this mediaObject
-                medias.push_back(mediaObject);
-            }
-            mediaAvailableFlag = true;
-            mediaDownloadFinishedFlag = false;
-        }
-    }
+								std::lock_guard<std::mutex> guard(localMediasMutex);
+								medias.clear();
+
+								for (int i = 0 ; i < mediaListCount && result == ARDATATRANSFER_OK; i++)
+								{
+										ARDATATRANSFER_Media_t * mediaObject = ARDATATRANSFER_MediasDownloader_GetAvailableMediaAtIndex(manager, i, &result);
+										//printf("Media %i: %s", i, mediaObject->name);
+										// Do what you want with this mediaObject
+										medias.push_back(mediaObject);
+								}
+								{
+										std::lock_guard<std::mutex> guard(mediaAvailableFlagMutex);
+										mediaAvailableFlag = true;
+								}
+								{
+										std::lock_guard<std::mutex> guard(mediaDownloadFinishedFlagMutex);
+										mediaDownloadFinishedFlag = false;
+								}
+						}
+				}
+				getAllMediaAsyncMutex.unlock();
+		}
 }
 
 void BebopDataTransferManager::downloadMedias()
 //void downloadMedias()
 {
     eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
+    std::lock_guard<std::mutex> guard(numberOfCurrentlyAvailableMediaToDownloadMutex);
     for (int i = 0 ; i < numberOfCurrentlyAvailableMediaToDownload && result == ARDATATRANSFER_OK; i++)
     {
         std::lock_guard<std::mutex> guard(localMediasMutex);
@@ -163,32 +177,26 @@ void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, AR
 //void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
 {
     // the media is downloading
-    std::cout << "Media downloaded up to: " << percent << std::endl;
+    //std::cout << "Media downloaded up to: " << percent << std::endl;
 }
 
 void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 //void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
     // the media is downloaded
-    //std::cout << "Media is downloaded!" << std::endl;
+    std::cout << "Media is downloaded!" << std::endl;
     static_cast<BebopDataTransferManager*>(arg)->medias_downloader_completion();
 }
 
 void BebopDataTransferManager::medias_downloader_completion()
 {
-		{
-				std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
-				mediaDeletedFinishedFlag = false;
-		}
-		{
-				std::lock_guard<std::mutex> guard(numberOfCurrentlyDownloadedNotDeletedMediaMutex);
-				numberOfCurrentlyDownloadedNotDeletedMedia++;
-		}
+		std::lock_guard<std::mutex> guard(numberOfCurrentlyDownloadedNotDeletedMediaMutex);
+		numberOfCurrentlyDownloadedNotDeletedMedia++;
 
+		std::lock_guard<std::mutex> guard1(numberOfCurrentlyAvailableMediaToDownloadMutex);
 		if(numberOfCurrentlyDownloadedNotDeletedMedia == numberOfCurrentlyAvailableMediaToDownload)
 		{
 				numberOfCurrentlyAvailableMediaToDownload = 0;
-
 				{
 						std::lock_guard<std::mutex> guard(mediaAvailableFlagMutex);
 						mediaAvailableFlag = false;
@@ -198,20 +206,31 @@ void BebopDataTransferManager::medias_downloader_completion()
 						mediaDownloadFinishedFlag = true;
 				}
 		}
+		else
+		{
+				std::cout << "numberOfCurrentlyDownloadedNotDeletedMedia: " << numberOfCurrentlyDownloadedNotDeletedMedia << ", numberOfCurrentlyAvailableMediaToDownload: " << numberOfCurrentlyAvailableMediaToDownload << std::endl;
+		}
+		{
+				std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
+				mediaDeletedFinishedFlag = false;
+		}
 }
 
 bool BebopDataTransferManager::mediaAvailable()
 {
+    std::lock_guard<std::mutex> guard(mediaAvailableFlagMutex);
     return(mediaAvailableFlag);
 }
 
 bool BebopDataTransferManager::mediaDownloadFinished()
 {
+    std::lock_guard<std::mutex> guard(mediaDownloadFinishedFlagMutex);
     return(mediaDownloadFinishedFlag);
 }
 
 bool BebopDataTransferManager::mediaDeletedFinished()
 {
+    std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
     return(mediaDeletedFinishedFlag);
 }
 
@@ -258,6 +277,7 @@ void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR er
 
 int BebopDataTransferManager::numberOfDownloadedFiles()
 {
+		std::lock_guard<std::mutex> guard(numberOfCurrentlyAvailableMediaToDownloadMutex);
 		return(numberOfCurrentlyAvailableMediaToDownload);
 }
 

@@ -45,6 +45,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <boost/filesystem.hpp>
 #include <boost/range.hpp>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 #include <bebop_driver/bebop_driver_nodelet.h>
 #include <bebop_driver/BebopArdrone3Config.h>
@@ -487,21 +489,20 @@ void BebopDriverNodelet::CameraPublisherThread()
   bool pictureToPublishFlag = false;
   NODELET_INFO_STREAM("[CameraThread] thread lwp_id: " << util::GetLWPId());
 
-	/*
 	ROS_INFO("Setting picture format to %u", 3);
 	bebop_ptr_->SetPictureFormat(3);
-	*/
 
-  // Wait for 1 seconds
-  //ros::Rate(ros::Duration(1.0)).sleep();
+	ros::Rate(ros::Duration(1.0)).sleep();
 
   while (!boost::this_thread::interruption_requested())
   {
     try
     {
       bebop_ptr_->TakeSnapshot();
+      std::cout << "CameraPublisherThread: Took snapshot!" << std::endl;
 
       //ros::Rate(ros::Duration(1.0)).sleep();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
       bebop_data_transfer_manager_ptr_->startMediaListThread();
 
@@ -511,8 +512,18 @@ void BebopDriverNodelet::CameraPublisherThread()
         {
           bebop_data_transfer_manager_ptr_->downloadMedias();
           //ros::Rate(ros::Duration(1.0)).sleep();
-          while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished());
+          while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished())
+          {
+            std::cout << "CameraPublisherThread: Media Download not finished...." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          }
           pictureToPublishFlag = true;
+        }
+        else
+        {
+            std::cout << "CameraPublisherThread: No pictures to publish yet...." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            bebop_data_transfer_manager_ptr_->startMediaListThread();
         }
       }
 
@@ -554,7 +565,10 @@ void BebopDriverNodelet::CameraPublisherThread()
       }
 
       bebop_data_transfer_manager_ptr_->removePictures();
-      while(!bebop_data_transfer_manager_ptr_->mediaDeletedFinished());
+      while(!bebop_data_transfer_manager_ptr_->mediaDeletedFinished())
+      {
+          std::cout << "CameraPublisherThread: Media Deletion not finished...." << std::endl;
+      }
       pictureToPublishFlag = false;
     }
     catch (const std::runtime_error& e)
