@@ -489,6 +489,7 @@ void BebopDriverNodelet::CameraPublisherThread()
   bool pictureToPublishFlag = false;
   NODELET_INFO_STREAM("[CameraThread] thread lwp_id: " << util::GetLWPId());
 
+	// Set picture format to fish-eye jpeg
 	ROS_INFO("Setting picture format to %u", 3);
 	bebop_ptr_->SetPictureFormat(3);
 
@@ -499,30 +500,33 @@ void BebopDriverNodelet::CameraPublisherThread()
     try
     {
       bebop_ptr_->TakeSnapshot();
-      std::cout << "CameraPublisherThread: Took snapshot!" << std::endl;
+      //std::cout << "CameraPublisherThread: Took snapshot!" << std::endl;
 
-      //ros::Rate(ros::Duration(1.0)).sleep();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
+      // Start thread to get available data
       bebop_data_transfer_manager_ptr_->startMediaListThread();
 
+      // Loop until there is a picture available
       while(!pictureToPublishFlag)
       {
         if(bebop_data_transfer_manager_ptr_->mediaAvailable())
         {
+          // start downloading picutre(s)
           bebop_data_transfer_manager_ptr_->downloadMedias();
-          //ros::Rate(ros::Duration(1.0)).sleep();
+          // Loop until all picture are downloaded
           while(!bebop_data_transfer_manager_ptr_->mediaDownloadFinished())
           {
-            std::cout << "CameraPublisherThread: Media Download not finished...." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            //std::cout << "CameraPublisherThread: Media Download not finished...." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
           }
           pictureToPublishFlag = true;
         }
         else
         {
-            std::cout << "CameraPublisherThread: No pictures to publish yet...." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            //std::cout << "CameraPublisherThread: No pictures to publish yet...." << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            // Start thread to get available data
             bebop_data_transfer_manager_ptr_->startMediaListThread();
         }
       }
@@ -562,12 +566,16 @@ void BebopDriverNodelet::CameraPublisherThread()
 
         sensor_msgs::ImagePtr image_msg_ptr_ = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
         image_transport_pub_.publish(image_msg_ptr_, camera_info_msg_ptr_);
+        ROS_INFO("Image published!");
       }
 
+      // Remove pictures from bebop as well as from tempory folder
       bebop_data_transfer_manager_ptr_->removePictures();
+      // Loop until all pictures are removed
       while(!bebop_data_transfer_manager_ptr_->mediaDeletedFinished())
       {
-          std::cout << "CameraPublisherThread: Media Deletion not finished...." << std::endl;
+          //std::cout << "CameraPublisherThread: Media Deletion not finished...." << std::endl;
+          std::this_thread::sleep_for(std::chrono::milliseconds(80));
       }
       pictureToPublishFlag = false;
     }

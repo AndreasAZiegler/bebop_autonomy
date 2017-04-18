@@ -3,21 +3,28 @@
 
 #include "bebop_driver/bebop_data_transfer_manager.h"
 
-ARSAL_Thread_t threadMediasDownloader;    // the thread that will download medias
+ARSAL_Thread_t threadMediasDownloader;    /**< the thread that will download medias */
 
+/**
+ * @brief Constructor
+ * Creates a data transfer manager instance
+ */
 BebopDataTransferManager::BebopDataTransferManager()
 	: manager(NULL),
 		mediaAvailableFlag(false),
 		mediaDownloadFinishedFlag(false),
 		numberOfCurrentlyAvailableMediaToDownload(0),
 		numberOfCurrentlyDownloadedNotDeletedMedia(0),
-		numberOfCurrentlyDeletedMedia(0),
-		downloadingMediasFlag(false)
+		numberOfCurrentlyDeletedMedia(0)
 {
 		threadMediasDownloaderPtr = &threadMediasDownloader;
 		createDataTransferManager();
 }
 
+/**
+ * @brief Destructor
+ * Terminates media download, deletes the media download manager and cleans up
+ */
 BebopDataTransferManager::~BebopDataTransferManager()
 {
    if (threadRetreiveAllMedias != NULL)
@@ -57,6 +64,9 @@ BebopDataTransferManager::~BebopDataTransferManager()
     ARDATATRANSFER_Manager_Delete(&manager);
 }
 
+/**
+ * @brief Creates a data transfer manager
+ */
 void BebopDataTransferManager::createDataTransferManager()
 {
     const char *productIP = "192.168.42.1";  // TODO: get this address from libARController
@@ -98,18 +108,29 @@ void BebopDataTransferManager::createDataTransferManager()
     }
 }
 
+/**
+ * @brief starts media list thread
+ */
 void BebopDataTransferManager::startMediaListThread()
 {
     // first retrieve Medias without their thumbnails
     ARSAL_Thread_Create(&threadRetreiveAllMedias, BebopDataTransferManager::ARMediaStorage_retreiveAllMediasAsync, (void*)this);
 }
 
+/**
+ * @brief Starts asynchronous media synchronisation in the getAllMediaAsync method
+ * @param arg Pointer to a BebopDataTransferManager object
+ * @return NULL
+ */
 void* BebopDataTransferManager::ARMediaStorage_retreiveAllMediasAsync(void* arg)
 {
     static_cast<BebopDataTransferManager*>(arg)->getAllMediaAsync();
     return NULL;
 }
 
+/**
+ * @brief Checks for available media. If media is available, the number of medias is set and the media addresses are writen to the corresponding vector.
+ */
 void BebopDataTransferManager::getAllMediaAsync()
 {
     if(getAllMediaAsyncMutex.try_lock())
@@ -133,8 +154,6 @@ void BebopDataTransferManager::getAllMediaAsync()
 								for (int i = 0 ; i < mediaListCount && result == ARDATATRANSFER_OK; i++)
 								{
 										ARDATATRANSFER_Media_t * mediaObject = ARDATATRANSFER_MediasDownloader_GetAvailableMediaAtIndex(manager, i, &result);
-										//printf("Media %i: %s", i, mediaObject->name);
-										// Do what you want with this mediaObject
 										medias.push_back(mediaObject);
 								}
 								{
@@ -151,8 +170,10 @@ void BebopDataTransferManager::getAllMediaAsync()
 		}
 }
 
+/**
+ * @brief Adds all media to the media dowload queue and starts the download.
+ */
 void BebopDataTransferManager::downloadMedias()
-//void downloadMedias()
 {
     eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
     std::lock_guard<std::mutex> guard(numberOfCurrentlyAvailableMediaToDownloadMutex);
@@ -173,21 +194,34 @@ void BebopDataTransferManager::downloadMedias()
     }
 }
 
+/**
+ * @brief Static call back method, executed when a download is in progress
+ * @param arg Pointer to a BebopDataTransferManager object
+ * @param media Pointer to the media object which is dowloading
+ * @param percent Progress in percent
+ */
 void BebopDataTransferManager::medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
-//void medias_downloader_progress_callback(void* arg, ARDATATRANSFER_Media_t *media, float percent)
 {
     // the media is downloading
     //std::cout << "Media downloaded up to: " << percent << std::endl;
 }
 
+/**
+ * @brief Static call back method, executed when a download is finished, it calls the medias_downloader_completion method
+ * @param arg Pointer to a BebopDataTransferManager object
+ * @param media Pointer to the media object which is dowloading
+ * @param error Error
+ */
 void BebopDataTransferManager::medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
-//void medias_downloader_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
     // the media is downloaded
-    std::cout << "Media is downloaded!" << std::endl;
+    //std::cout << "Media downloaded!" << std::endl;
     static_cast<BebopDataTransferManager*>(arg)->medias_downloader_completion();
 }
 
+/**
+ * @brief Method to check if all media is downloaded
+ */
 void BebopDataTransferManager::medias_downloader_completion()
 {
 		std::lock_guard<std::mutex> guard(numberOfCurrentlyDownloadedNotDeletedMediaMutex);
@@ -216,24 +250,39 @@ void BebopDataTransferManager::medias_downloader_completion()
 		}
 }
 
+/**
+ * @brief Returns the state of the media available flag.
+ * @return State of the media available flag
+ */
 bool BebopDataTransferManager::mediaAvailable()
 {
     std::lock_guard<std::mutex> guard(mediaAvailableFlagMutex);
     return(mediaAvailableFlag);
 }
 
+/**
+ * @brief Returns the state of the media download finished flag.
+ * @return State of the media download finished flag
+ */
 bool BebopDataTransferManager::mediaDownloadFinished()
 {
     std::lock_guard<std::mutex> guard(mediaDownloadFinishedFlagMutex);
     return(mediaDownloadFinishedFlag);
 }
 
+/**
+ * @brief Returns the state of the media deleted finished flag.
+ * @return State of the media deleted finished flag
+ */
 bool BebopDataTransferManager::mediaDeletedFinished()
 {
     std::lock_guard<std::mutex> guard(mediaDeletedFinishedFlagMutex);
     return(mediaDeletedFinishedFlag);
 }
 
+/**
+ * @brief Delete all the downloaded media on the bebop.
+ */
 void BebopDataTransferManager::deleteAllMedia()
 {
     eARDATATRANSFER_ERROR result = ARDATATRANSFER_OK;
@@ -246,12 +295,21 @@ void BebopDataTransferManager::deleteAllMedia()
     }
 }
 
-
+/**
+ * @brief Static call back method, executed when a media is deleted, it calls the medias_delete_completion method
+ * @param arg Pointer to a BebopDataTransferManager object
+ * @param media Pointer to the media object which is deleted
+ * @param error Error
+ */
 void BebopDataTransferManager::medias_delete_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
 		static_cast<BebopDataTransferManager*>(arg)->medias_delete_completion(error);
 }
 
+/**
+ * @brief Checks if the deletion of the downloaded medias is completed.
+ * @param error Error
+ */
 void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR error)
 {
 		if(error == ARDATATRANSFER_OK)
@@ -274,24 +332,22 @@ void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR er
 		}
 }
 
-
+/**
+ * @brief Returns the number of downloaded files.
+ * @return Number of downloaded files
+ */
 int BebopDataTransferManager::numberOfDownloadedFiles()
 {
 		std::lock_guard<std::mutex> guard(numberOfCurrentlyAvailableMediaToDownloadMutex);
 		return(numberOfCurrentlyAvailableMediaToDownload);
 }
 
+/**
+ * @brief Removes all downloaded pictures on the bebop and in the temporary folder.
+ */
 void BebopDataTransferManager::removePictures()
 {
 		deleteAllMedia();
 
-		/*
-		std::cout << "Remove pictures!" << std::endl;
-
-		std::ofstream outfile("tmp/test.txt");
-		outfile << "Test" << std::endl;
-		outfile.close();
-		*/
-
-		//system("exec rm -r tmp/*");
+		system("exec rm -r tmp/*");
 }
