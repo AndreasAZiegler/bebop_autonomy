@@ -296,6 +296,15 @@ void BebopDataTransferManager::deleteAllMedia()
 }
 
 /**
+ * @brief Delets the media on the Bebop
+ * @param media Pointer to the media which should be deleted
+ */
+void BebopDataTransferManager::deleteMedia(ARDATATRANSFER_Media_t *media)
+{
+    ARDATATRANSFER_MediasDownloader_DeleteMedia(manager, media, BebopDataTransferManager::medias_delete_completion_callback, (void*)this);
+}
+
+/**
  * @brief Static call back method, executed when a media is deleted, it calls the medias_delete_completion method
  * @param arg Pointer to a BebopDataTransferManager object
  * @param media Pointer to the media object which is deleted
@@ -303,14 +312,15 @@ void BebopDataTransferManager::deleteAllMedia()
  */
 void BebopDataTransferManager::medias_delete_completion_callback(void* arg, ARDATATRANSFER_Media_t *media, eARDATATRANSFER_ERROR error)
 {
-		static_cast<BebopDataTransferManager*>(arg)->medias_delete_completion(error);
+    static_cast<BebopDataTransferManager*>(arg)->medias_delete_completion(error, media);
 }
 
 /**
  * @brief Checks if the deletion of the downloaded medias is completed.
  * @param error Error
+ * @param media Pointer to the media object
  */
-void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR error)
+void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR error, ARDATATRANSFER_Media_t *media)
 {
 		if(error == ARDATATRANSFER_OK)
 		{
@@ -329,6 +339,8 @@ void BebopDataTransferManager::medias_delete_completion(eARDATATRANSFER_ERROR er
 		else
 		{
 				std::cout << "Media delete errer: " << error << std::endl;
+				// Try to delete the media again
+				deleteMedia(media);
 		}
 }
 

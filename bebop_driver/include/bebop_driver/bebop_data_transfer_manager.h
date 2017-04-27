@@ -118,6 +118,12 @@ class BebopDataTransferManager
 		void deleteAllMedia();
 
 		/**
+		 * @brief Delets the media on the Bebop
+		 * @param media Pointer to the media which should be deleted
+		 */
+		void deleteMedia(ARDATATRANSFER_Media_t *media);
+
+		/**
 		 * @brief Static call back method, executed when a media is deleted, it calls the medias_delete_completion method
 		 * @param arg Pointer to a BebopDataTransferManager object
 		 * @param media Pointer to the media object which is deleted
@@ -128,8 +134,9 @@ class BebopDataTransferManager
 		/**
 		 * @brief Checks if the deletion of the downloaded medias is completed.
 		 * @param error Error
+		 * @param media Pointer to the media object
 		 */
-		void medias_delete_completion(eARDATATRANSFER_ERROR error);
+		void medias_delete_completion(eARDATATRANSFER_ERROR error, ARDATATRANSFER_Media_t *media);
 
 		ARDATATRANSFER_Manager_t *manager;        /**< Pointer to the data transfer manager */
 		ARSAL_Thread_t threadRetreiveAllMedias;   /**< The thread that will do the media retrieving */
